@@ -116,7 +116,15 @@ func (p *Parser[K]) ParseStatements(statements []string) ([]*Statement[K], error
 	return parsedStatements, nil
 }
 
-var parser = newParser[parsedStatement]()
+var parser *participle.Parser[parsedStatement]
+
+func init() {
+
+	if parser != nil {
+		return
+	}
+	parser = newParser[parsedStatement]()
+}
 
 func parseStatement(raw string) (*parsedStatement, error) {
 	parsed, err := parser.ParseString("", raw)
