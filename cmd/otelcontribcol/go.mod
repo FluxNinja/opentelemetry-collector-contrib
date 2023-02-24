@@ -489,8 +489,8 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.3-0.20220909204839-494a5a6aca78 // indirect
 	github.com/opencontainers/selinux v1.10.0 // indirect
 	github.com/openlyinc/pointy v1.2.0 // indirect
-	github.com/openshift/api v0.0.0-20210521075222-e273a339932a // indirect
-	github.com/openshift/client-go v0.0.0-20210521082421-73d9475a9142 // indirect
+	github.com/openshift/api v0.0.0-20230223193310-d964c7a58d75 // indirect
+	github.com/openshift/client-go v0.0.0-20230120202327-72f107311084 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/outcaste-io/ristretto v0.2.0 // indirect
