@@ -65,7 +65,7 @@ type SelectorConfig struct {
 	Name string `mapstructure:"name"`
 
 	// API version of Kubernetes resource.
-	ApiVersion string `mapstructure:"api_version"`
+	APIVersion string `mapstructure:"api_version"`
 
 	// Kubernetes resource type.
 	Kind string `mapstructure:"kind"`

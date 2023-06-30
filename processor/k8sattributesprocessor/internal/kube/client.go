@@ -637,7 +637,7 @@ func (c *WatchClient) matchKind(kind, name, apiVersion string) bool {
 		return true
 	}
 
-	if c.Selectors.ApiVersion != "" && c.Selectors.ApiVersion != apiVersion {
+	if c.Selectors.APIVersion != "" && c.Selectors.APIVersion != apiVersion {
 		return true
 	}
 
@@ -648,11 +648,11 @@ func (c *WatchClient) matchSelector(pod *api_v1.Pod) bool {
 	if !c.Selectors.Enabled {
 		return false
 	}
-	
+
 	if !c.matchKind(pod.Kind, pod.Name, pod.APIVersion) {
 		return false
 	}
-	
+
 	for _, owner := range pod.OwnerReferences {
 		switch c.Selectors.Kind {
 		case "Deployment":

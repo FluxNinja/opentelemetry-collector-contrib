@@ -138,7 +138,7 @@ func Test_WindowsPerfCounterScraper(t *testing.T) {
 					},
 				},
 				ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
-					CollectionInterval: time.Minute
+					CollectionInterval: time.Minute,
 					InitialDelay:       time.Second,
 				},
 			},

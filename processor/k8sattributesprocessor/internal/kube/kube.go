@@ -171,7 +171,7 @@ type Selectors struct {
 	Enabled    bool
 	Namespace  string
 	Name       string
-	ApiVersion string
+	APIVersion string
 	Kind       string
 }
 

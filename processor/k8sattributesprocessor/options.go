@@ -199,13 +199,13 @@ func extractFieldRules(fieldType string, fields ...FieldExtractConfig) ([]kube.F
 // withSelector allows specifying options to enable selector.
 func withSelector(selector SelectorConfig) option {
 	return func(p *kubernetesprocessor) error {
-		if selector.Name == "" && selector.Kind == "" && selector.ApiVersion == "" && selector.Namespace == "" {
+		if selector.Name == "" && selector.Kind == "" && selector.APIVersion == "" && selector.Namespace == "" {
 			p.selectors.Enabled = false
 		} else {
 			p.selectors.Enabled = true
 			p.selectors.Name = selector.Name
 			p.selectors.Kind = selector.Kind
-			p.selectors.ApiVersion = selector.ApiVersion
+			p.selectors.APIVersion = selector.APIVersion
 			p.selectors.Namespace = selector.Namespace
 		}
 
