@@ -136,10 +136,10 @@ func (kp *kubernetesprocessor) processResource(ctx context.Context, resource pco
 				}
 			}
 			kp.addContainerAttributes(resource.Attributes(), pod)
-		} else {
+		} else if kp.selectors.Enabled {
 			return false
 		}
-	} else {
+	} else if kp.selectors.Enabled {
 		return false
 	}
 
