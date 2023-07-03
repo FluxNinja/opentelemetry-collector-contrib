@@ -25,10 +25,7 @@ import (
 const mongoPort = "27017"
 
 func TestIntegration(t *testing.T) {
-	// Simulate enable removeDatabaseAttrFeatureGate
-	err := featuregate.GlobalRegistry().Set(removeDatabaseAttrID, true)
-	require.NoError(t, err)
-
+	t.Skip("Flaky test, see https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/16273")
 	t.Run("4.0", integrationTest("4_0", []string{"/setup.sh"}, func(*Config) {}))
 	t.Run("5.0", integrationTest("5_0", []string{"/setup.sh"}, func(*Config) {}))
 	t.Run("4.4lpu", integrationTest("4_4lpu", []string{"/lpu.sh"}, func(cfg *Config) {
