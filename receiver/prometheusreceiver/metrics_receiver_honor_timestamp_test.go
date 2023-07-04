@@ -43,8 +43,8 @@ var honorTimestampsPage1 = `
 # TYPE go_thread gauge
 go_threads 19 %v
 
-# HELP http_requests_total The total number of HTTP requests.
-# TYPE http_requests_total counter
+# HELP http_requests The total number of HTTP requests.
+# TYPE http_requests counter
 http_requests_total{method="post",code="200"} 100 %v
 http_requests_total{method="post",code="400"} 5 %v
 
@@ -71,8 +71,8 @@ var honorTimestampsPage2 = `
 # TYPE go_thread gauge
 go_threads 18 %v
 
-# HELP http_requests_total The total number of HTTP requests.
-# TYPE http_requests_total counter
+# HELP http_requests The total number of HTTP requests.
+# TYPE http_requests counter
 http_requests_total{method="post",code="200"} 99 %v
 http_requests_total{method="post",code="400"} 3 %v
 
@@ -101,8 +101,8 @@ var honorTimestampsPage3 = `
 # TYPE go_thread gauge
 go_threads 19 %v
 
-# HELP http_requests_total The total number of HTTP requests.
-# TYPE http_requests_total counter
+# HELP http_requests The total number of HTTP requests.
+# TYPE http_requests counter
 http_requests_total{method="post",code="200"} 100 %v
 http_requests_total{method="post",code="400"} 5 %v
 
@@ -216,7 +216,7 @@ func verifyHonorTimeStampsTrue(t *testing.T, td *testData, resourceMetrics []pme
 					},
 				},
 			}),
-		assertMetricPresent("http_requests_total",
+		assertMetricPresent("http_requests",
 			compareMetricType(pmetric.MetricTypeSum),
 			[]dataPointExpectation{
 				{
@@ -276,7 +276,7 @@ func verifyHonorTimeStampsTrue(t *testing.T, td *testData, resourceMetrics []pme
 					},
 				},
 			}),
-		assertMetricPresent("http_requests_total",
+		assertMetricPresent("http_requests",
 			compareMetricType(pmetric.MetricTypeSum),
 			[]dataPointExpectation{
 				{
@@ -336,7 +336,7 @@ func verifyHonorTimeStampsTrue(t *testing.T, td *testData, resourceMetrics []pme
 					},
 				},
 			}),
-		assertMetricPresent("http_requests_total",
+		assertMetricPresent("http_requests",
 			compareMetricType(pmetric.MetricTypeSum),
 			[]dataPointExpectation{
 				{
@@ -404,7 +404,7 @@ func verifyHonorTimeStampsFalse(t *testing.T, td *testData, resourceMetrics []pm
 					},
 				},
 			}),
-		assertMetricPresent("http_requests_total",
+		assertMetricPresent("http_requests",
 			compareMetricType(pmetric.MetricTypeSum),
 			[]dataPointExpectation{
 				{
@@ -466,7 +466,7 @@ func verifyHonorTimeStampsFalse(t *testing.T, td *testData, resourceMetrics []pm
 					},
 				},
 			}),
-		assertMetricPresent("http_requests_total",
+		assertMetricPresent("http_requests",
 			compareMetricType(pmetric.MetricTypeSum),
 			[]dataPointExpectation{
 				{

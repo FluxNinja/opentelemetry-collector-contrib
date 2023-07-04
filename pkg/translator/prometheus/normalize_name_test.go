@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
@@ -166,6 +167,16 @@ func TestTrimPromSuffixes(t *testing.T) {
 	assert.Equal(t, "active_directory_ds_replication_object_rate_per_second", TrimPromSuffixes("active_directory_ds_replication_object_rate_per_second", pmetric.MetricTypeGauge, "{objects}/s"))
 	assert.Equal(t, "system_disk_operation_time_seconds", TrimPromSuffixes("system_disk_operation_time_seconds_total", pmetric.MetricTypeSum, "s"))
 
+}
+
+func TestTrimPromSuffixesWithFeatureGateDisabled(t *testing.T) {
+	registry := featuregate.NewRegistry()
+	_, err := registry.Register(normalizeNameGate.ID(), featuregate.StageAlpha)
+	require.NoError(t, err)
+	normalizer := NewNormalizer(registry)
+
+	assert.Equal(t, "apache_current_connections", normalizer.TrimPromSuffixes("apache_current_connections", pmetric.MetricTypeGauge, "connections"))
+	assert.Equal(t, "apache_requests_total", normalizer.TrimPromSuffixes("apache_requests_total", pmetric.MetricTypeSum, "1"))
 }
 
 func TestNamespace(t *testing.T) {
