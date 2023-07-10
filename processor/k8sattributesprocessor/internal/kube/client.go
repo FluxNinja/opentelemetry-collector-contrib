@@ -125,7 +125,7 @@ func New(logger *zap.Logger, apiCfg k8sconfig.APIConfig, rules ExtractionRules, 
 		if newReplicaSetInformer == nil {
 			newReplicaSetInformer = newReplicaSetSharedInformer
 		}
-		err = c.createReplicaSetInformers(newReplicaSetInformer, labelSelector, fieldSelector)
+		err = c.createReplicaSetInformers(newReplicaSetInformer)
 		if err != nil {
 			return nil, err
 		}
@@ -979,7 +979,7 @@ func (c *WatchClient) createPodInformers(newInformer InformerProvider, lableSele
 }
 
 // createReplicaSetInformers creates informers for all the namespaces that are in Selectors or Filters.
-func (c *WatchClient) createReplicaSetInformers(newInformer InformerProviderReplicaSet, lableSelector labels.Selector, fieldSelector fields.Selector) error {
+func (c *WatchClient) createReplicaSetInformers(newInformer InformerProviderReplicaSet) error {
 	if c.replicasetInformers == nil {
 		c.replicasetInformers = make([]cache.SharedInformer, len(c.Selectors)+1)
 	}
