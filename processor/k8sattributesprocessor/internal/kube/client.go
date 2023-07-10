@@ -12,6 +12,7 @@ import (
 
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 	apps_v1 "k8s.io/api/apps/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -725,38 +726,37 @@ func (c *WatchClient) shouldIgnorePod(pod *api_v1.Pod) bool {
 		}
 	}
 
+	selectorMatched := []bool{}
 	// Check if the pod doesn't belong to the selector
 	for _, selector := range c.Selectors {
-		if c.matchSelector(pod, selector) {
-			return true
+		if !selector.Enabled {
+			continue
 		}
+
+		selectorMatched = append(selectorMatched, c.matchSelector(pod, selector))
 	}
-	return false
+	return len(selectorMatched) != 0 && !slices.Contains(selectorMatched, true)
 }
 
 func (c *WatchClient) matchKind(kind, name, apiVersion string, selector Selector) bool {
 	if selector.Kind != "" && selector.Kind != kind {
-		return true
+		return false
 	}
 
 	if selector.Name != "" && selector.Name != name {
-		return true
+		return false
 	}
 
 	if selector.APIVersion != "" && selector.APIVersion != apiVersion {
-		return true
+		return false
 	}
 
-	return false
+	return true
 }
 
 func (c *WatchClient) matchSelector(pod *api_v1.Pod, selector Selector) bool {
-	if !selector.Enabled {
-		return false
-	}
-
-	if !c.matchKind(pod.Kind, pod.Name, pod.APIVersion, selector) {
-		return false
+	if c.matchKind(pod.Kind, pod.Name, pod.APIVersion, selector) {
+		return true
 	}
 
 	for _, owner := range pod.OwnerReferences {
@@ -765,7 +765,7 @@ func (c *WatchClient) matchSelector(pod *api_v1.Pod, selector Selector) bool {
 			if owner.Kind == "ReplicaSet" {
 				if replicaset, ok := c.getReplicaSet(string(owner.UID)); ok {
 					if replicaset.Deployment.Name == selector.Name {
-						return false
+						return true
 					}
 				}
 			} else {
@@ -775,7 +775,7 @@ func (c *WatchClient) matchSelector(pod *api_v1.Pod, selector Selector) bool {
 			if selector.Kind == "CronJob" {
 				parts := c.cronJobRegex.FindStringSubmatch(owner.Name)
 				if len(parts) == 2 && selector.Name == parts[1] {
-					return false
+					return true
 				}
 			} else {
 				return c.matchKind(owner.Kind, owner.Name, owner.APIVersion, selector)
@@ -785,7 +785,7 @@ func (c *WatchClient) matchSelector(pod *api_v1.Pod, selector Selector) bool {
 		}
 	}
 
-	return true
+	return false
 }
 
 func selectorsFromFilters(filters Filters) (labels.Selector, fields.Selector, error) {
@@ -981,7 +981,7 @@ func (c *WatchClient) createPodInformers(newInformer InformerProvider, lableSele
 // createReplicaSetInformers creates informers for all the namespaces that are in Selectors or Filters.
 func (c *WatchClient) createReplicaSetInformers(newInformer InformerProviderReplicaSet) error {
 	if c.replicasetInformers == nil {
-		c.replicasetInformers = make([]cache.SharedInformer, len(c.Selectors)+1)
+		c.replicasetInformers = []cache.SharedInformer{}
 	}
 
 	getInformer := func(namespace string) (cache.SharedInformer, error) {

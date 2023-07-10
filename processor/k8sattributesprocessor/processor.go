@@ -129,7 +129,8 @@ func (kp *kubernetesprocessor) processResource(ctx context.Context, resource pco
 	var isSelectorEnabled bool
 	for _, selector := range kp.selectors {
 		if selector.Enabled {
-			return false
+			isSelectorEnabled = true
+			break
 		}
 	}
 
