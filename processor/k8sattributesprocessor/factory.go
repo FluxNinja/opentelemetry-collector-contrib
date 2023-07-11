@@ -162,7 +162,7 @@ func createProcessorOpts(cfg component.Config) []option {
 	opts = append(opts, withAPIConfig(oCfg.APIConfig))
 
 	// selectors
-	opts = append(opts, withSelector(oCfg.Selector))
+	opts = append(opts, withSelectors(oCfg.Selectors))
 
 	opts = append(opts, withExtractPodAssociations(oCfg.Association...))
 

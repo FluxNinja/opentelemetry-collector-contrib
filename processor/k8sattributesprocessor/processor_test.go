@@ -224,7 +224,7 @@ func TestNewProcessor(t *testing.T) {
 }
 
 func TestProcessorBadClientProvider(t *testing.T) {
-	clientProvider := func(_ *zap.Logger, _ k8sconfig.APIConfig, _ kube.ExtractionRules, _ kube.Filters, _ kube.Selectors, _ []kube.Association, _ kube.Excludes, _ kube.APIClientsetProvider, _ kube.InformerProvider, _ kube.InformerProviderNamespace, _ kube.InformerProviderReplicaSet) (kube.Client, error) {
+	clientProvider := func(_ *zap.Logger, _ k8sconfig.APIConfig, _ kube.ExtractionRules, _ kube.Filters, _ []kube.Selector, _ []kube.Association, _ kube.Excludes, _ kube.APIClientsetProvider, _ kube.InformerProvider, _ kube.InformerProviderNamespace, _ kube.InformerProviderReplicaSet) (kube.Client, error) {
 		return nil, fmt.Errorf("bad client error")
 	}
 
@@ -1396,7 +1396,7 @@ func TestStartStop(t *testing.T) {
 
 	assert.NotNil(t, kp)
 	kc := kp.kc.(*fakeClient)
-	controller := kc.Informer.GetController().(*kube.FakeController)
+	controller := kc.Informers[0].GetController().(*kube.FakeController)
 
 	assert.False(t, controller.HasStopped())
 	assert.NoError(t, p.Shutdown(context.Background()))
