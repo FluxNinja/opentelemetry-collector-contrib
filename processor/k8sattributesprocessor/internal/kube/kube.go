@@ -92,7 +92,7 @@ type Client interface {
 }
 
 // ClientProvider defines a func type that returns a new Client.
-type ClientProvider func(*zap.Logger, k8sconfig.APIConfig, ExtractionRules, Filters, Selectors, []Association, Excludes, APIClientsetProvider, InformerProvider, InformerProviderNamespace, InformerProviderReplicaSet) (Client, error)
+type ClientProvider func(*zap.Logger, k8sconfig.APIConfig, ExtractionRules, Filters, []Selector, []Association, Excludes, APIClientsetProvider, InformerProvider, InformerProviderNamespace, InformerProviderReplicaSet) (Client, error)
 
 // APIClientsetProvider defines a func type that initializes and return a new kubernetes
 // Clientset object.
@@ -166,8 +166,8 @@ type Filters struct {
 	Labels    []FieldFilter
 }
 
-// Selectors are used to select the pods which should be processed by the processor.
-type Selectors struct {
+// Selector are used to select the pods which should be processed by the processor.
+type Selector struct {
 	Enabled    bool
 	Namespace  string
 	Name       string

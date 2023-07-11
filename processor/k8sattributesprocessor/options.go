@@ -257,19 +257,27 @@ func extractFieldRules(fieldType string, fields ...FieldExtractConfig) ([]kube.F
 	return rules, nil
 }
 
-// withSelector allows specifying options to enable selector.
-func withSelector(selector SelectorConfig) option {
+// withSelectors allows specifying options to enable selectors.
+func withSelectors(selectors []SelectorConfig) option {
 	return func(p *kubernetesprocessor) error {
-		if selector.Name == "" && selector.Kind == "" && selector.APIVersion == "" && selector.Namespace == "" {
-			p.selectors.Enabled = false
-		} else {
-			p.selectors.Enabled = true
-			p.selectors.Name = selector.Name
-			p.selectors.Kind = selector.Kind
-			p.selectors.APIVersion = selector.APIVersion
-			p.selectors.Namespace = selector.Namespace
+		if p.selectors == nil {
+			p.selectors = make([]kube.Selector, len(selectors))
 		}
 
+		for _, selector := range selectors {
+			kubeSelector := kube.Selector{}
+			if selector.Name == "" && selector.Kind == "" && selector.APIVersion == "" && selector.Namespace == "" {
+				kubeSelector.Enabled = false
+			} else {
+				kubeSelector.Enabled = true
+				kubeSelector.Name = selector.Name
+				kubeSelector.Kind = selector.Kind
+				kubeSelector.APIVersion = selector.APIVersion
+				kubeSelector.Namespace = selector.Namespace
+			}
+
+			p.selectors = append(p.selectors, kubeSelector)
+		}
 		return nil
 	}
 }
