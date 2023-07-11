@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 	apps_v1 "k8s.io/api/apps/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,24 +37,24 @@ var enableRFC3339Timestamp = featuregate.GlobalRegistry().MustRegister(
 
 // WatchClient is the main interface provided by this package to a kubernetes cluster.
 type WatchClient struct {
-	m                  sync.RWMutex
-	deleteMut          sync.Mutex
-	logger             *zap.Logger
-	kc                 kubernetes.Interface
-	informer           cache.SharedInformer
-	namespaceInformer  cache.SharedInformer
-	replicasetInformer cache.SharedInformer
-	replicasetRegex    *regexp.Regexp
-	cronJobRegex       *regexp.Regexp
-	deleteQueue        []deleteRequest
-	stopCh             chan struct{}
+	m                   sync.RWMutex
+	deleteMut           sync.Mutex
+	logger              *zap.Logger
+	kc                  kubernetes.Interface
+	informers           []cache.SharedInformer
+	namespaceInformer   cache.SharedInformer
+	replicasetInformers []cache.SharedInformer
+	replicasetRegex     *regexp.Regexp
+	cronJobRegex        *regexp.Regexp
+	deleteQueue         []deleteRequest
+	stopCh              chan struct{}
 
 	// A map containing Pod related data, used to associate them with resources.
 	// Key can be either an IP address or Pod UID
 	Pods         map[PodIdentifier]*Pod
 	Rules        ExtractionRules
 	Filters      Filters
-	Selectors    Selectors
+	Selectors    []Selector
 	Associations []Association
 	Exclude      Excludes
 
@@ -75,7 +76,7 @@ var rRegex = regexp.MustCompile(`^(.*)-[0-9a-zA-Z]+$`)
 var cronJobRegex = regexp.MustCompile(`^(.*)-[0-9]+$`)
 
 // New initializes a new k8s Client.
-func New(logger *zap.Logger, apiCfg k8sconfig.APIConfig, rules ExtractionRules, filters Filters, selectors Selectors, associations []Association, exclude Excludes, newClientSet APIClientsetProvider, newInformer InformerProvider, newNamespaceInformer InformerProviderNamespace, newReplicaSetInformer InformerProviderReplicaSet) (Client, error) {
+func New(logger *zap.Logger, apiCfg k8sconfig.APIConfig, rules ExtractionRules, filters Filters, selectors []Selector, associations []Association, exclude Excludes, newClientSet APIClientsetProvider, newInformer InformerProvider, newNamespaceInformer InformerProviderNamespace, newReplicaSetInformer InformerProviderReplicaSet) (Client, error) {
 	c := &WatchClient{
 		logger:          logger,
 		Rules:           rules,
@@ -119,22 +120,7 @@ func New(logger *zap.Logger, apiCfg k8sconfig.APIConfig, rules ExtractionRules, 
 		newNamespaceInformer = newNamespaceSharedInformer
 	}
 
-	namespace := c.Selectors.Namespace
-	if namespace == "" {
-		namespace = c.Filters.Namespace
-	}
-
-	c.informer = newInformer(c.kc, namespace, labelSelector, fieldSelector)
-	err = c.informer.SetTransform(
-		func(object interface{}) (interface{}, error) {
-			originalPod, success := object.(*api_v1.Pod)
-			if !success { // means this is a cache.DeletedFinalStateUnknown, in which case we do nothing
-				return object, nil
-			}
-
-			return removeUnnecessaryPodData(originalPod, c.Rules), nil
-		},
-	)
+	err = c.createPodInformers(newInformer, labelSelector, fieldSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -149,17 +135,7 @@ func New(logger *zap.Logger, apiCfg k8sconfig.APIConfig, rules ExtractionRules, 
 		if newReplicaSetInformer == nil {
 			newReplicaSetInformer = newReplicaSetSharedInformer
 		}
-		c.replicasetInformer = newReplicaSetInformer(c.kc, namespace)
-		err = c.replicasetInformer.SetTransform(
-			func(object interface{}) (interface{}, error) {
-				originalReplicaset, success := object.(*apps_v1.ReplicaSet)
-				if !success { // means this is a cache.DeletedFinalStateUnknown, in which case we do nothing
-					return object, nil
-				}
-
-				return removeUnnecessaryReplicaSetData(originalReplicaset), nil
-			},
-		)
+		err = c.createReplicaSetInformers(newReplicaSetInformer)
 		if err != nil {
 			return nil, err
 		}
@@ -170,17 +146,19 @@ func New(logger *zap.Logger, apiCfg k8sconfig.APIConfig, rules ExtractionRules, 
 
 // Start registers pod event handlers and starts watching the kubernetes cluster for pod changes.
 func (c *WatchClient) Start() {
-	_, err := c.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.handlePodAdd,
-		UpdateFunc: c.handlePodUpdate,
-		DeleteFunc: c.handlePodDelete,
-	})
-	if err != nil {
-		c.logger.Error("error adding event handler to pod informer", zap.Error(err))
+	for _, informer := range c.informers {
+		_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handlePodAdd,
+			UpdateFunc: c.handlePodUpdate,
+			DeleteFunc: c.handlePodDelete,
+		})
+		if err != nil {
+			c.logger.Error("error adding event handler to pod informer", zap.Error(err))
+		}
+		go informer.Run(c.stopCh)
 	}
-	go c.informer.Run(c.stopCh)
 
-	_, err = c.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := c.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.handleNamespaceAdd,
 		UpdateFunc: c.handleNamespaceUpdate,
 		DeleteFunc: c.handleNamespaceDelete,
@@ -191,15 +169,17 @@ func (c *WatchClient) Start() {
 	go c.namespaceInformer.Run(c.stopCh)
 
 	if c.Rules.DeploymentName || c.Rules.DeploymentUID {
-		_, err = c.replicasetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc:    c.handleReplicaSetAdd,
-			UpdateFunc: c.handleReplicaSetUpdate,
-			DeleteFunc: c.handleReplicaSetDelete,
-		})
-		if err != nil {
-			c.logger.Error("error adding event handler to replicaset informer", zap.Error(err))
+		for _, informer := range c.replicasetInformers {
+			_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.handleReplicaSetAdd,
+				UpdateFunc: c.handleReplicaSetUpdate,
+				DeleteFunc: c.handleReplicaSetDelete,
+			})
+			if err != nil {
+				c.logger.Error("error adding event handler to replicaset informer", zap.Error(err))
+			}
+			go informer.Run(c.stopCh)
 		}
-		go c.replicasetInformer.Run(c.stopCh)
 	}
 }
 
@@ -763,62 +743,66 @@ func (c *WatchClient) shouldIgnorePod(pod *api_v1.Pod) bool {
 		}
 	}
 
+	selectorMatched := []bool{}
 	// Check if the pod doesn't belong to the selector
-	return c.matchSelector(pod)
-}
-
-func (c *WatchClient) matchKind(kind, name, apiVersion string) bool {
-	if c.Selectors.Kind != "" && c.Selectors.Kind != kind {
-		return true
-	}
-
-	if c.Selectors.Name != "" && c.Selectors.Name != name {
-		return true
-	}
-
-	if c.Selectors.APIVersion != "" && c.Selectors.APIVersion != apiVersion {
-		return true
-	}
-
-	return false
-}
-
-func (c *WatchClient) matchSelector(pod *api_v1.Pod) bool {
-	if !c.Selectors.Enabled {
-		return false
-	}
-
-	if !c.matchKind(pod.Kind, pod.Name, pod.APIVersion) {
-		return false
-	}
-
-	for _, owner := range pod.OwnerReferences {
-		switch c.Selectors.Kind {
-		case "Deployment":
-			if owner.Kind == "ReplicaSet" {
-				if replicaset, ok := c.getReplicaSet(string(owner.UID)); ok {
-					if replicaset.Deployment.Name == c.Selectors.Name {
-						return false
-					}
-				}
-			} else {
-				return c.matchKind(owner.Kind, owner.Name, owner.APIVersion)
-			}
-		case "Job":
-			if c.Selectors.Kind == "CronJob" {
-				parts := c.cronJobRegex.FindStringSubmatch(owner.Name)
-				if len(parts) == 2 && c.Selectors.Name == parts[1] {
-					return false
-				}
-			} else {
-				return c.matchKind(owner.Kind, owner.Name, owner.APIVersion)
-			}
-		default:
-			return c.matchKind(owner.Kind, owner.Name, owner.APIVersion)
+	for _, selector := range c.Selectors {
+		if !selector.Enabled {
+			continue
 		}
+
+		selectorMatched = append(selectorMatched, c.matchSelector(pod, selector))
+	}
+	return len(selectorMatched) != 0 && !slices.Contains(selectorMatched, true)
+}
+
+func (c *WatchClient) matchKind(kind, name, apiVersion string, selector Selector) bool {
+	if selector.Kind != "" && selector.Kind != kind {
+		return false
+	}
+
+	if selector.Name != "" && selector.Name != name {
+		return false
+	}
+
+	if selector.APIVersion != "" && selector.APIVersion != apiVersion {
+		return false
 	}
 
 	return true
+}
+
+func (c *WatchClient) matchSelector(pod *api_v1.Pod, selector Selector) bool {
+	if c.matchKind(pod.Kind, pod.Name, pod.APIVersion, selector) {
+		return true
+	}
+
+	for _, owner := range pod.OwnerReferences {
+		switch selector.Kind {
+		case "Deployment":
+			if owner.Kind == "ReplicaSet" {
+				if replicaset, ok := c.getReplicaSet(string(owner.UID)); ok {
+					if replicaset.Deployment.Name == selector.Name {
+						return true
+					}
+				}
+			} else {
+				return c.matchKind(owner.Kind, owner.Name, owner.APIVersion, selector)
+			}
+		case "Job":
+			if selector.Kind == "CronJob" {
+				parts := c.cronJobRegex.FindStringSubmatch(owner.Name)
+				if len(parts) == 2 && selector.Name == parts[1] {
+					return true
+				}
+			} else {
+				return c.matchKind(owner.Kind, owner.Name, owner.APIVersion, selector)
+			}
+		default:
+			return c.matchKind(owner.Kind, owner.Name, owner.APIVersion, selector)
+		}
+	}
+
+	return false
 }
 
 func selectorsFromFilters(filters Filters) (labels.Selector, fields.Selector, error) {
@@ -964,4 +948,97 @@ func (c *WatchClient) getReplicaSet(uid string) (*ReplicaSet, bool) {
 		return replicaset, ok
 	}
 	return nil, false
+}
+
+// createPodInformers creates informers for all the namespaces that are in Selectors or Filters.
+func (c *WatchClient) createPodInformers(newInformer InformerProvider, lableSelector labels.Selector, fieldSelector fields.Selector) error {
+	if c.informers == nil {
+		c.informers = []cache.SharedInformer{}
+	}
+
+	getInformer := func(namespace string) (cache.SharedInformer, error) {
+		informer := newInformer(c.kc, namespace, lableSelector, fieldSelector)
+		err := informer.SetTransform(
+			func(object interface{}) (interface{}, error) {
+				originalPod, success := object.(*api_v1.Pod)
+				if !success { // means this is a cache.DeletedFinalStateUnknown, in which case we do nothing
+					return object, nil
+				}
+
+				return removeUnnecessaryPodData(originalPod, c.Rules), nil
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return informer, nil
+	}
+
+	if len(c.Selectors) == 0 {
+		informer, err := getInformer(c.Filters.Namespace)
+		if err != nil {
+			return err
+		}
+		c.informers = append(c.informers, informer)
+	} else {
+		for _, selector := range c.Selectors {
+			if !selector.Enabled || (c.Filters.Namespace != "" && selector.Namespace != c.Filters.Namespace) {
+				continue
+			}
+			informer, err := getInformer(selector.Namespace)
+			if err != nil {
+				return err
+			}
+			c.informers = append(c.informers, informer)
+		}
+	}
+
+	return nil
+}
+
+// createReplicaSetInformers creates informers for all the namespaces that are in Selectors or Filters.
+func (c *WatchClient) createReplicaSetInformers(newInformer InformerProviderReplicaSet) error {
+	if c.replicasetInformers == nil {
+		c.replicasetInformers = []cache.SharedInformer{}
+	}
+
+	getInformer := func(namespace string) (cache.SharedInformer, error) {
+		informer := newInformer(c.kc, namespace)
+		err := informer.SetTransform(
+			func(object interface{}) (interface{}, error) {
+				originalReplicaset, success := object.(*apps_v1.ReplicaSet)
+				if !success { // means this is a cache.DeletedFinalStateUnknown, in which case we do nothing
+					return object, nil
+				}
+
+				return removeUnnecessaryReplicaSetData(originalReplicaset), nil
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return informer, nil
+	}
+
+	if len(c.Selectors) == 0 {
+		informer, err := getInformer(c.Filters.Namespace)
+		if err != nil {
+			return err
+		}
+		c.replicasetInformers = append(c.replicasetInformers, informer)
+	} else {
+		for _, selector := range c.Selectors {
+			if !selector.Enabled || (c.Filters.Namespace != "" && selector.Namespace != c.Filters.Namespace) {
+				continue
+			}
+			informer, err := getInformer(selector.Namespace)
+			if err != nil {
+				return err
+			}
+			c.replicasetInformers = append(c.replicasetInformers, informer)
+		}
+	}
+	return nil
 }
