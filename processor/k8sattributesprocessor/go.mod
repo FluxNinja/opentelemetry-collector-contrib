@@ -21,6 +21,7 @@ require (
 	go.opentelemetry.io/collector/semconv v0.87.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.26.0
+	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
 	k8s.io/api v0.28.2
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
