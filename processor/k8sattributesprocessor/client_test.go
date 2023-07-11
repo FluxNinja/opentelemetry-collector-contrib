@@ -16,16 +16,16 @@ import (
 
 // fakeClient is used as a replacement for WatchClient in test cases.
 type fakeClient struct {
-	Pods               map[kube.PodIdentifier]*kube.Pod
-	Rules              kube.ExtractionRules
-	Filters            kube.Filters
-	Selectors          kube.Selectors
-	Associations       []kube.Association
-	Informer           cache.SharedInformer
-	NamespaceInformer  cache.SharedInformer
-	ReplicaSetInformer cache.SharedInformer
-	Namespaces         map[string]*kube.Namespace
-	StopCh             chan struct{}
+	Pods                map[kube.PodIdentifier]*kube.Pod
+	Rules               kube.ExtractionRules
+	Filters             kube.Filters
+	Selectors           []kube.Selector
+	Associations        []kube.Association
+	Informers           []cache.SharedInformer
+	NamespaceInformer   cache.SharedInformer
+	ReplicaSetInformers []cache.SharedInformer
+	Namespaces          map[string]*kube.Namespace
+	StopCh              chan struct{}
 }
 
 func selectors() (labels.Selector, fields.Selector) {
@@ -34,20 +34,20 @@ func selectors() (labels.Selector, fields.Selector) {
 }
 
 // newFakeClient instantiates a new FakeClient object and satisfies the ClientProvider type
-func newFakeClient(_ *zap.Logger, _ k8sconfig.APIConfig, rules kube.ExtractionRules, filters kube.Filters, kubeSelectors kube.Selectors, associations []kube.Association, _ kube.Excludes, _ kube.APIClientsetProvider, _ kube.InformerProvider, _ kube.InformerProviderNamespace, _ kube.InformerProviderReplicaSet) (kube.Client, error) {
+func newFakeClient(_ *zap.Logger, _ k8sconfig.APIConfig, rules kube.ExtractionRules, filters kube.Filters, kubeSelectors []kube.Selector, associations []kube.Association, _ kube.Excludes, _ kube.APIClientsetProvider, _ kube.InformerProvider, _ kube.InformerProviderNamespace, _ kube.InformerProviderReplicaSet) (kube.Client, error) {
 	cs := fake.NewSimpleClientset()
 
 	ls, fs := selectors()
 	return &fakeClient{
-		Pods:               map[kube.PodIdentifier]*kube.Pod{},
-		Rules:              rules,
-		Filters:            filters,
-		Selectors:          kubeSelectors,
-		Associations:       associations,
-		Informer:           kube.NewFakeInformer(cs, "", ls, fs),
-		NamespaceInformer:  kube.NewFakeInformer(cs, "", ls, fs),
-		ReplicaSetInformer: kube.NewFakeInformer(cs, "", ls, fs),
-		StopCh:             make(chan struct{}),
+		Pods:                map[kube.PodIdentifier]*kube.Pod{},
+		Rules:               rules,
+		Filters:             filters,
+		Selectors:           kubeSelectors,
+		Associations:        associations,
+		Informers:           []cache.SharedInformer{kube.NewFakeInformer(cs, "", ls, fs)},
+		NamespaceInformer:   kube.NewFakeInformer(cs, "", ls, fs),
+		ReplicaSetInformers: []cache.SharedInformer{kube.NewFakeInformer(cs, "", ls, fs)},
+		StopCh:              make(chan struct{}),
 	}, nil
 }
 
@@ -65,8 +65,8 @@ func (f *fakeClient) GetNamespace(namespace string) (*kube.Namespace, bool) {
 
 // Start is a noop for FakeClient.
 func (f *fakeClient) Start() {
-	if f.Informer != nil {
-		f.Informer.Run(f.StopCh)
+	if len(f.Informers) > 0 && f.Informers[0] != nil {
+		f.Informers[0].Run(f.StopCh)
 	}
 }
 

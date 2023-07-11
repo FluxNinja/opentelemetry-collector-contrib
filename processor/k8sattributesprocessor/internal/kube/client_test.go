@@ -117,12 +117,12 @@ func namespaceAddAndUpdateTest(t *testing.T, c *WatchClient, handler func(obj in
 }
 
 func TestDefaultClientset(t *testing.T) {
-	c, err := New(zap.NewNop(), k8sconfig.APIConfig{}, ExtractionRules{}, Filters{}, Selectors{}, []Association{}, Excludes{}, nil, nil, nil, nil)
+	c, err := New(zap.NewNop(), k8sconfig.APIConfig{}, ExtractionRules{}, Filters{}, []Selector{}, []Association{}, Excludes{}, nil, nil, nil, nil)
 	assert.Error(t, err)
 	assert.Equal(t, "invalid authType for kubernetes: ", err.Error())
 	assert.Nil(t, c)
 
-	c, err = New(zap.NewNop(), k8sconfig.APIConfig{}, ExtractionRules{}, Filters{}, Selectors{}, []Association{}, Excludes{}, newFakeAPIClientset, nil, nil, nil)
+	c, err = New(zap.NewNop(), k8sconfig.APIConfig{}, ExtractionRules{}, Filters{}, []Selector{}, []Association{}, Excludes{}, newFakeAPIClientset, nil, nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, c)
 }
@@ -133,7 +133,7 @@ func TestBadFilters(t *testing.T) {
 		k8sconfig.APIConfig{},
 		ExtractionRules{},
 		Filters{Fields: []FieldFilter{{Op: selection.Exists}}},
-		Selectors{},
+		[]Selector{},
 		[]Association{},
 		Excludes{},
 		newFakeAPIClientset,
@@ -147,7 +147,7 @@ func TestBadFilters(t *testing.T) {
 
 func TestClientStartStop(t *testing.T) {
 	c, _ := newTestClient(t)
-	ctr := c.informer.GetController()
+	ctr := c.informers[0].GetController()
 	require.IsType(t, &FakeController{}, ctr)
 	fctr := ctr.(*FakeController)
 	require.NotNil(t, fctr)
@@ -176,7 +176,7 @@ func TestConstructorErrors(t *testing.T) {
 			gotAPIConfig = c
 			return nil, fmt.Errorf("error creating k8s client")
 		}
-		c, err := New(zap.NewNop(), apiCfg, er, ff, Selectors{}, []Association{}, Excludes{}, clientProvider, NewFakeInformer, NewFakeNamespaceInformer, nil)
+		c, err := New(zap.NewNop(), apiCfg, er, ff, []Selector{}, []Association{}, Excludes{}, clientProvider, NewFakeInformer, NewFakeNamespaceInformer, nil)
 		assert.Nil(t, c)
 		assert.Error(t, err)
 		assert.Equal(t, "error creating k8s client", err.Error())
@@ -1327,7 +1327,7 @@ func TestFilters(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c, _ := newTestClientWithRulesAndFilters(t, tc.filters)
-			inf := c.informer.(*FakeInformer)
+			inf := c.informers[0].(*FakeInformer)
 			assert.Equal(t, tc.filters.Namespace, inf.namespace)
 			assert.Equal(t, tc.labels, inf.labelSelector.String())
 			assert.Equal(t, tc.fields, inf.fieldSelector.String())
@@ -1795,7 +1795,8 @@ func newTestClientWithRulesAndFilters(t *testing.T, f Filters) (*WatchClient, *o
 			},
 		},
 	}
-	c, err := New(logger, k8sconfig.APIConfig{}, ExtractionRules{}, f, Selectors{}, associations, exclude, newFakeAPIClientset, NewFakeInformer, NewFakeNamespaceInformer, NewFakeReplicaSetInformer)
+	c, err := New(logger, k8sconfig.APIConfig{}, ExtractionRules{}, f, []Selector{}, associations, exclude, newFakeAPIClientset, NewFakeInformer, NewFakeNamespaceInformer, NewFakeReplicaSetInformer)
+	fmt.Printf("%+v\n", c)
 	require.NoError(t, err)
 	return c.(*WatchClient), logs
 }
