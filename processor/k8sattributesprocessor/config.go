@@ -31,9 +31,9 @@ type Config struct {
 	// pods by labels, fields, namespaces, nodes, etc.
 	Filter FilterConfig `mapstructure:"filter"`
 
-	// Selector section allows specifying selectors to select
+	// Selectors section allows specifying selectors to select
 	// pods.
-	Selector SelectorConfig `mapstructure:"selector"`
+	Selectors []SelectorConfig `mapstructure:"selectors"`
 
 	// Association section allows to define rules for tagging spans, metrics,
 	// and logs with Pod metadata.

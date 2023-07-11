@@ -31,7 +31,7 @@ type kubernetesprocessor struct {
 	passthroughMode bool
 	rules           kube.ExtractionRules
 	filters         kube.Filters
-	selectors       kube.Selectors
+	selectors       []kube.Selector
 	podAssociations []kube.Association
 	podIgnore       kube.Excludes
 }
@@ -127,6 +127,14 @@ func (kp *kubernetesprocessor) processResource(ctx context.Context, resource pco
 	}
 
 	var pod *kube.Pod
+	var isSelectorEnabled bool
+	for _, selector := range kp.selectors {
+		if selector.Enabled {
+			isSelectorEnabled = true
+			break
+		}
+	}
+
 	if podIdentifierValue.IsNotEmpty() {
 		var podFound bool
 		if pod, podFound = kp.kc.GetPod(podIdentifierValue); podFound {
@@ -138,10 +146,10 @@ func (kp *kubernetesprocessor) processResource(ctx context.Context, resource pco
 				}
 			}
 			kp.addContainerAttributes(resource.Attributes(), pod)
-		} else if kp.selectors.Enabled {
+		} else if isSelectorEnabled {
 			return false
 		}
-	} else if kp.selectors.Enabled {
+	} else if isSelectorEnabled {
 		return false
 	}
 
