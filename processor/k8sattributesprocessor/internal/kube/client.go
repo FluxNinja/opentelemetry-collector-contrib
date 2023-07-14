@@ -275,7 +275,6 @@ func (c *WatchClient) deleteLoop(interval time.Duration, gracePeriod time.Durati
 
 			c.m.Lock()
 			for _, d := range toDelete {
-				c.m.Lock()
 				if p, ok := c.Pods[d.id]; ok {
 					// Sanity check: make sure we are deleting the same pod
 					// and the underlying state (ip<>pod mapping) has not changed.
@@ -283,12 +282,9 @@ func (c *WatchClient) deleteLoop(interval time.Duration, gracePeriod time.Durati
 						delete(c.Pods, d.id)
 					}
 				}
-				c.m.Unlock()
 			}
 
-			c.m.RLock()
 			podTableSize := len(c.Pods)
-			c.m.RUnlock()
 			observability.RecordPodTableSize(int64(podTableSize))
 			c.m.Unlock()
 
@@ -692,14 +688,12 @@ func (c *WatchClient) addOrUpdatePod(pod *api_v1.Pod) {
 		// and only replace old pod if scheduled time of new pod is newer or equal.
 		// This should fix the case where scheduler has assigned the same attributes (like IP address)
 		// to a new pod but update event for the old pod came in later.
-		c.m.Lock()
 		if p, ok := c.Pods[id]; ok {
 			if pod.Status.StartTime.Before(p.StartTime) {
 				continue
 			}
 		}
 		c.Pods[id] = newPod
-		c.m.Unlock()
 	}
 }
 
