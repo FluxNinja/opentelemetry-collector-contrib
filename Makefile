@@ -132,7 +132,7 @@ for-all:
 
 COMMIT?=HEAD
 MODSET?=contrib-core
-REMOTE?=git@github.com:open-telemetry/opentelemetry-collector-contrib.git
+REMOTE?=git@github.com:fluxninja/opentelemetry-collector-contrib.git
 .PHONY: push-tags
 push-tags: $(MULITMOD)
 	$(MULITMOD) verify
