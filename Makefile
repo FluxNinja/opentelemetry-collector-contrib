@@ -136,15 +136,15 @@ for-all:
 	done
 
 COMMIT?=HEAD
-MODSET?=contrib-core
-REMOTE?=git@github.com:open-telemetry/opentelemetry-collector-contrib.git
+MODSET?=contrib-base
+REMOTE?=git@github.com:fluxninja/opentelemetry-collector-contrib.git
 .PHONY: push-tags
 push-tags: $(MULTIMOD)
 	$(MULTIMOD) verify
 	set -e; for tag in `$(MULTIMOD) tag -m ${MODSET} -c ${COMMIT} --print-tags | grep -v "Using" `; do \
-		echo "pushing tag $${tag}"; \
-		git push ${REMOTE} $${tag}; \
+		echo "created tag $${tag}"; \
 	done;
+	git push --tags
 
 # Define a delegation target for each module
 .PHONY: $(ALL_MODS)
